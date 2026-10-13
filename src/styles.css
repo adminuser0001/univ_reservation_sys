@@ -1,0 +1,1965 @@
+/* ============================================================
+   整理券受付 — 藍の帳場と、刷り色の整理券
+   ============================================================ */
+
+:root {
+  --ink: #1d2560; /* 藍：見出し・主ボタン */
+  --ink-soft: #3a4386;
+  --paper: #eef1f7; /* 背景：青みの紙 */
+  --surface: #ffffff;
+  --text: #1a1d2b;
+  --muted: #5d6379;
+  --line: #d7dce8;
+  --ticket: #ffe7a0; /* 整理券の刷り色 */
+  --ticket-edge: #e9bf4f;
+  --stamp: #c8323c; /* 登録済の朱印 */
+  --ok: #17784c;
+  --warn: #a8530a;
+  --danger: #b42318;
+  --product: var(--ink);
+
+  --font: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
+  --font-display: 'Dela Gothic One', var(--font);
+
+  --r-s: 8px;
+  --r-m: 14px;
+  --r-l: 22px;
+  --nav-h: 64px;
+  --gutter: 16px;
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  /* 画面ごとに縦スクロールバーが出たり消えたりして、下のタブが横にずれるのを防ぐ */
+  overflow-y: scroll;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ticket-edge);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Material Symbols ---------- */
+.ms {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 1.25em;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  direction: ltr;
+  vertical-align: -0.22em;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  -webkit-font-feature-settings: 'liga';
+  user-select: none;
+}
+
+.ms--filled {
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ---------- 骨組み ---------- */
+.shell {
+  min-height: 100dvh;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 10px) var(--gutter) 10px;
+  background: var(--ink);
+  color: #fff;
+}
+
+.app-header__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.app-header__title > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header__mark {
+  color: var(--ticket);
+  font-size: 24px;
+}
+
+.mode-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.app-main {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px var(--gutter) calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.loading {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+.version-footer {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 下部ナビ ---------- */
+.bottom-nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.bottom-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.bottom-nav__item .ms {
+  font-size: 26px;
+  padding: 2px 18px;
+  border-radius: 999px;
+  transition: background-color 0.15s;
+}
+
+.bottom-nav__item[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.bottom-nav__item[aria-current='page'] .ms {
+  background: var(--ticket);
+}
+
+/* ---------- 日付・体験の切り替え ---------- */
+.date-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 2px var(--gutter);
+}
+
+.date-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.date-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-chip[aria-selected='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.date-chip__today {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--ticket);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+/* 3つまでは横一列に等幅で並べ、4つ目からは次の段に折り返す（列数は ProductTabs が渡す） */
+.product-tabs {
+  display: grid;
+  grid-template-columns: repeat(var(--columns, 3), minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-m);
+  background: #e1e5ef;
+}
+
+.product-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.product-tab__swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--product);
+}
+
+/* 長い名前は枠の中で折り返す */
+.product-tab__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.product-tab[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 -3px 0 var(--product);
+}
+
+/* ---------- 時間割（予約画面） ---------- */
+/* 左に時刻、体験を列に並べる。列数は IssuePage が渡す */
+.timetable {
+  display: grid;
+  grid-template-columns: auto repeat(var(--columns, 1), minmax(0, 1fr));
+  gap: 8px;
+}
+
+.timetable__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 -3px 0 var(--product);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.timetable__time {
+  align-self: center;
+  padding-right: 4px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timetable__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tt-slot {
+  flex: 1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  min-height: 60px;
+  padding: 8px 14px 8px 12px;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--product);
+  border-radius: var(--r-m);
+  background: var(--surface);
+  text-align: left;
+}
+
+.tt-slot:not(:disabled):active {
+  background: #f6f7fb;
+}
+
+.tt-slot__status {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tt-slot__status b {
+  margin: 0 2px 0 4px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.tt-slot__end {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tt-slot--full {
+  background: #f3f4f7;
+  border-left-color: #b8bdcb;
+  color: var(--muted);
+}
+
+.tt-slot--full .tt-slot__status {
+  color: var(--danger);
+}
+
+.tt-slot--over .tt-slot__status {
+  color: var(--warn);
+}
+
+.tt-slot--closed {
+  background: repeating-linear-gradient(-45deg, #f3f4f7 0 8px, #eceef3 8px 16px);
+  border-left-color: #b8bdcb;
+  color: var(--muted);
+}
+
+.seat-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.seat-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--product);
+  opacity: 0.55;
+}
+
+.seat-dot.is-taken {
+  background: var(--product);
+  opacity: 1;
+}
+
+.seat-dot.is-over {
+  border-color: var(--warn);
+  background: var(--warn);
+}
+
+.tt-slot--full .seat-dot,
+.tt-slot--closed .seat-dot {
+  border-color: #9aa0b1;
+}
+
+.tt-slot--full .seat-dot.is-taken,
+.tt-slot--closed .seat-dot.is-taken {
+  background: #9aa0b1;
+}
+
+.seat-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #e4e7ef;
+  overflow: hidden;
+}
+
+.seat-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--product);
+}
+
+.page-note {
+  font-size: 13px;
+  color: var(--warn);
+}
+
+/* スマホ幅では、枠の中を縦に積んで3列でも収める */
+@media (max-width: 599px) {
+  .timetable {
+    gap: 6px;
+  }
+
+  .timetable__head {
+    padding: 6px 4px;
+    font-size: 14px;
+  }
+
+  .timetable__head .product-tab__swatch {
+    display: none;
+  }
+
+  .timetable__time {
+    padding-right: 0;
+    font-size: 15px;
+  }
+
+  .tt-slot {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px 6px 8px 6px;
+    border-left-width: 4px;
+  }
+
+  .tt-slot__status {
+    text-align: left;
+  }
+
+  .tt-slot .seat-dots {
+    gap: 3px;
+  }
+
+  .tt-slot .seat-dot {
+    width: 10px;
+    height: 10px;
+  }
+}
+
+/* ---------- 空の状態 ---------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 16px;
+  text-align: center;
+}
+
+.empty__icon {
+  font-size: 44px;
+  color: var(--ink-soft);
+  opacity: 0.6;
+}
+
+.empty__title {
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.empty__body {
+  max-width: 28em;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+/* ---------- ボタン ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--r-m);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.btn--primary {
+  background: var(--ink);
+  color: #fff;
+}
+
+.btn--primary:not(:disabled):active {
+  background: var(--ink-soft);
+}
+
+.btn--ghost {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn--danger-ghost {
+  background: var(--surface);
+  border-color: #f0c6c2;
+  color: var(--danger);
+}
+
+.btn--block {
+  width: 100%;
+  min-height: 56px;
+  font-size: 17px;
+}
+
+.btn--grow {
+  flex: 1;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+}
+
+.icon-btn:active {
+  background: #e8ebf2;
+}
+
+/* ---------- シート ---------- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(18 22 54 / 0.45);
+  animation: fade-in 0.15s ease-out;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 520px;
+  max-height: 100dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px var(--gutter) calc(env(safe-area-inset-bottom) + 16px);
+  border-radius: var(--r-l) var(--r-l) 0 0;
+  background: var(--surface);
+  animation: sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sheet__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sheet__product {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.sheet__product::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--product);
+}
+
+.sheet__slot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet__slot .is-warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.sheet__error,
+.inline-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--r-s);
+  background: #fdecea;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sheet__actions {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 10px;
+}
+
+.sheet__actions .btn {
+  min-height: 56px;
+}
+
+/* ---------- 整理券（この画面の主役） ---------- */
+.ticket {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 132px;
+  padding: 14px 28px 16px 40px;
+  background:
+    linear-gradient(var(--product), var(--product)) left / 14px 100% no-repeat,
+    radial-gradient(circle at 1px 1px, rgb(0 0 0 / 0.05) 1px, transparent 1.5px) 0 0 / 6px 6px,
+    var(--ticket);
+  border-radius: 6px;
+  /* 左右の切り欠き */
+  -webkit-mask:
+    radial-gradient(circle 11px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 11px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle 11px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 11px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+}
+
+/* ミシン目 */
+.ticket::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 24px;
+  border-left: 2px dashed rgb(29 37 96 / 0.25);
+}
+
+.ticket__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgb(29 37 96 / 0.7);
+  letter-spacing: 0.08em;
+}
+
+.ticket__number {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 15vw, 72px);
+  line-height: 1.1;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  text-align: center;
+}
+
+.ticket__number.is-empty {
+  padding: 22px 0;
+  font-family: var(--font);
+  font-size: 18px;
+  font-weight: 700;
+  color: rgb(29 37 96 / 0.4);
+  letter-spacing: 0.04em;
+}
+
+/* 番号なしの運用では、券面に代表者の名前を出す */
+.ticket__number--name {
+  font-size: clamp(26px, 7vw, 38px);
+  letter-spacing: 0.02em;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.ticket__party {
+  margin-top: 4px;
+  padding: 1px 12px;
+  border-radius: 999px;
+  background: rgb(29 37 96 / 0.1);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket--void {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+.ticket__stamp {
+  position: absolute;
+  right: 18px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border: 3px solid var(--stamp);
+  border-radius: 50%;
+  color: var(--stamp);
+  font-family: var(--font-display);
+  font-size: 17px;
+  transform: rotate(-14deg);
+  box-shadow: inset 0 0 0 3px var(--ticket), inset 0 0 0 5px var(--stamp);
+  opacity: 0.88;
+  animation: stamp 0.32s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+/* ---------- テンキー ---------- */
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.keypad__key {
+  min-height: 58px;
+  border: 0;
+  border-radius: 12px;
+  background: #eff1f6;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.keypad__key:not(:disabled):active {
+  background: #dfe3ee;
+}
+
+.keypad__key--fn {
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.keypad__key--fn .ms {
+  font-size: 26px;
+}
+
+/* ---------- 予約一覧 ---------- */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-m);
+  background: var(--surface);
+}
+
+.search > .ms {
+  color: var(--muted);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.search input::placeholder {
+  font-size: 16px;
+  font-weight: 500;
+  color: #8a90a4;
+}
+
+/* 左に時刻の軸、右にその時刻の予約カード（体験ごと）を並べる */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline__row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 0 8px;
+}
+
+@media (max-width: 599px) {
+  .timeline__row {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 0 6px;
+  }
+
+  .timeline__row .timeline__time {
+    font-size: 14px;
+  }
+
+  .timeline__body {
+    padding-left: 8px;
+  }
+}
+
+.timeline__time {
+  padding-top: 10px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  align-items: start;
+  gap: 10px;
+  padding: 0 0 12px 12px;
+  border-left: 2px solid var(--line);
+}
+
+.timeline__row:last-child .timeline__body {
+  padding-bottom: 0;
+}
+
+.timeline__row--empty .timeline__time {
+  padding-top: 4px;
+  color: #8a90a4;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.timeline__empty {
+  padding: 4px 0;
+  color: #8a90a4;
+  font-size: 13px;
+}
+
+.roster__group {
+  padding: 12px 14px;
+  border-radius: var(--r-m);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--product);
+}
+
+.roster__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.roster__product {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.roster__count {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.roster__count.is-over {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.list-summary {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.list-summary b {
+  margin: 0 2px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.booking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.booking-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.booking {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.booking:active {
+  background: #f6f7fb;
+}
+
+.booking__no {
+  flex: none;
+  min-width: 48px;
+  padding: 2px 8px;
+  border: 1px solid var(--ticket-edge);
+  border-radius: 6px;
+  background: var(--ticket);
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.booking__who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.booking__name {
+  font-weight: 700;
+}
+
+.booking__sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.booking__sub .ms {
+  font-size: 1.1em;
+}
+
+.booking__size {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.booking__go {
+  flex: none;
+  color: #9aa0b1;
+}
+
+.booking--cancelled .booking__name,
+.booking--cancelled .booking__size {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.booking--cancelled .booking__no {
+  background: transparent;
+  border-style: dashed;
+  border-color: #b8bdcb;
+  color: #8a90a4;
+}
+
+.tag {
+  flex: none;
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: #eceef3;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tag--exception {
+  background: #fdf0dc;
+  color: var(--warn);
+}
+
+/* ---------- 予約フォーム ---------- */
+.res-form,
+.res-form__face,
+.res-form__body,
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fields:disabled {
+  opacity: 0.7;
+}
+
+.fields__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: 12px;
+}
+
+.fields__row--slot {
+  grid-template-columns: 1fr;
+}
+
+.privacy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.inline-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--r-s);
+  background: var(--paper);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.inline-note--warn {
+  background: #fdf0dc;
+  color: var(--warn);
+}
+
+.privacy-note .ms,
+.inline-note .ms,
+.sheet__error .ms {
+  flex: none;
+}
+
+.res-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn--warn {
+  background: var(--warn);
+  color: #fff;
+}
+
+.btn--danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.check-button {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 16px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: #fbfcfe;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.check-button .ms {
+  font-size: 24px;
+}
+
+.check-button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: #eef1fb;
+  color: var(--ink);
+}
+
+/* 体験する方：人数の分だけ行が増える */
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.person {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+}
+
+.person--missing {
+  border-color: var(--danger);
+  background: #fef6f5;
+}
+
+.person__no {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.person__rep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.age-chips {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.age-chip {
+  min-height: 40px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.age-chip[aria-checked='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ---------- 確認ダイアログ ---------- */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: rgb(18 22 54 / 0.55);
+  animation: fade-in 0.15s ease-out;
+}
+
+.confirm {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 20px 20px;
+  border-radius: var(--r-l);
+  background: var(--surface);
+  box-shadow: 0 16px 48px rgb(18 22 54 / 0.35);
+}
+
+.confirm__icon {
+  font-size: 36px;
+  color: var(--ink);
+}
+
+.confirm--warn .confirm__icon {
+  color: var(--warn);
+}
+
+.confirm--danger .confirm__icon {
+  color: var(--danger);
+}
+
+.confirm__title {
+  font-size: 18px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.confirm__body {
+  color: var(--muted);
+  font-size: 15px;
+  white-space: pre-line;
+}
+
+.confirm__actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.confirm__actions .btn {
+  min-height: 52px;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: #fbfcfe;
+  overflow: hidden;
+}
+
+.stepper__btn {
+  display: grid;
+  place-items: center;
+  height: 46px;
+  border: 0;
+  background: #eff1f6;
+  color: var(--ink);
+}
+
+.stepper__btn:not(:disabled):active {
+  background: #dfe3ee;
+}
+
+.stepper__btn:disabled {
+  color: #b8bdcb;
+}
+
+.stepper__value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepper__value small {
+  margin-left: 2px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ---------- 履歴 ---------- */
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--surface);
+}
+
+.log {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 12px 0;
+}
+
+.log + .log {
+  border-top: 1px solid var(--line);
+}
+
+.log__time {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.log__action {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.log--cancel .log__action,
+.log--delete .log__action {
+  color: var(--danger);
+}
+
+.log__body {
+  grid-column: 1 / -1;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.log__body b {
+  margin-right: 8px;
+}
+
+.log__body .tag {
+  margin-left: 8px;
+}
+
+/* ---------- 設定画面 ---------- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-m);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.panel__hint {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.field textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: #fbfcfe;
+  width: 100%;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field textarea:focus {
+  border-color: var(--ink);
+  outline: 2px solid rgb(29 37 96 / 0.15);
+  outline-offset: 0;
+}
+
+.field input,
+.field select,
+.inline-form input,
+.product-item__name,
+.slot-editor input {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: #fbfcfe;
+  width: 100%;
+  min-width: 0;
+}
+
+.field input:focus,
+.field select:focus,
+.inline-form input:focus,
+.product-item__name:focus,
+.slot-editor input:focus {
+  border-color: var(--ink);
+  outline: 2px solid rgb(29 37 96 / 0.15);
+  outline-offset: 0;
+}
+
+.inline-form {
+  display: flex;
+  gap: 8px;
+}
+
+.inline-form .btn {
+  flex: none;
+  min-height: 46px;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-m);
+  background: #e1e5ef;
+}
+
+.segmented__item {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.segmented__item[aria-checked='true'],
+.segmented__item[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(18 22 54 / 0.15);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.switch-row > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.switch-row__label {
+  font-weight: 700;
+}
+
+.switch-row__hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 52px;
+  height: 30px;
+  margin: 0;
+  border-radius: 999px;
+  background: #c4c9d6;
+  transition: background-color 0.15s;
+  cursor: pointer;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 0.15s;
+}
+
+.switch:checked {
+  background: var(--ok);
+}
+
+.switch:checked::after {
+  transform: translateX(22px);
+}
+
+.mini-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mini-switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ok);
+}
+
+.date-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.date-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f6f7fb;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-list .icon-btn {
+  width: 34px;
+  height: 34px;
+}
+
+.product-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.product-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--product);
+  border-radius: var(--r-s);
+}
+
+.product-item__name {
+  font-weight: 700;
+}
+
+.product-item__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.color-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.color-picker__swatch {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.color-picker__swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+/* 時間枠を作る：体験の数だけカードが並ぶ */
+.slot-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--product);
+  border-radius: var(--r-s);
+}
+
+.slot-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.slot-card__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* その体験・その日の時間枠を、もう作ってあるかの目印 */
+.created-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: #dcf3e7;
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.created-chip--none {
+  padding-left: 10px;
+  background: #eceef3;
+  color: var(--muted);
+}
+
+.btn--done,
+.btn--done:disabled {
+  background: #dcf3e7;
+  color: var(--ok);
+  opacity: 1;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-grid__preview {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border-radius: var(--r-s);
+  background: #fff7dc;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-grid > .btn {
+  grid-column: 1 / -1;
+}
+
+.slot-editor {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.slot-editor li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'time del'
+    'cap open';
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.slot-editor li:last-child {
+  border-bottom: 0;
+}
+
+.slot-editor li.is-closed .slot-editor__time {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.slot-editor__time {
+  grid-area: time;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.slot-editor .icon-btn {
+  grid-area: del;
+  justify-self: end;
+}
+
+.slot-editor__cap {
+  grid-area: cap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.slot-editor__cap input {
+  width: 80px;
+  min-height: 40px;
+}
+
+.slot-editor .mini-switch {
+  grid-area: open;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.button-grid .btn {
+  justify-content: flex-start;
+}
+
+@media (min-width: 560px) {
+  .button-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.button-grid .btn {
+  white-space: normal;
+  line-height: 1.3;
+  padding: 8px 12px;
+}
+
+/* ---------- トースト ---------- */
+.toast-region {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--gutter);
+  pointer-events: none;
+}
+
+/* シートを開いている間は、券面やボタンに重ならないよう上に出す */
+body:has(.sheet-backdrop) .toast-region {
+  top: calc(env(safe-area-inset-top) + 12px);
+  bottom: auto;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 480px;
+  padding: 12px 16px;
+  border-radius: var(--r-m);
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgb(18 22 54 / 0.3);
+  animation: toast-in 0.2s ease-out;
+}
+
+.toast--ok .ms {
+  color: #8be0b5;
+}
+
+.toast--error {
+  background: var(--danger);
+}
+
+/* ---------- タブレット・PC ---------- */
+@media (min-width: 768px) {
+  .sheet-backdrop {
+    align-items: center;
+  }
+
+  .sheet {
+    border-radius: var(--r-l);
+    max-height: calc(100dvh - 48px);
+    padding-bottom: 20px;
+  }
+
+  .slot-editor li {
+    grid-template-columns: 9em 1fr auto auto;
+    grid-template-areas: 'time cap open del';
+  }
+
+  /* 左に券面とテンキー、右に参加者情報を並べる */
+  .sheet--wide {
+    max-width: 860px;
+  }
+
+  .res-form--split {
+    display: grid;
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+
+  .fields__row--slot {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .fields__row--slot > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  .log {
+    grid-template-columns: 9em 7em 1fr;
+  }
+
+  .log__body {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 960px) {
+  .app-main {
+    max-width: 960px;
+  }
+
+  .settings {
+    width: 100%;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+}
+
+/* ---------- 動き ---------- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+@keyframes stamp {
+  from {
+    transform: rotate(-14deg) scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
