@@ -45,6 +45,9 @@ npm run preview  # http://localhost:4173 と、Network のURL（http://<PCのIP>
 
 - 同じ Wi-Fi で使う：PC で上のコマンドを動かしたまま、タブレットのブラウザで Network のURLを開く。再読み込みには PC が要る（http ではオフライン起動の仕組みが働かない）
 - オフラインで使う：HTTPS か localhost で一度開くと、以後は PC もネットもなしで起動できる。ブラウザのメニューから「ホーム画面に追加」する
-  - HTTPS：`dist` を静的ホスティング（GitHub Pages など）に置く。置くのはプログラムだけで、予約データは載らない
+  - HTTPS：GitHub Pages で配信している → https://adminuser0001.github.io/univ_reservation_sys/ 。置くのはプログラムだけで、予約データは載らない
+    - `main` に push すると、テスト → ビルド → 公開まで自動で行う（`.github/workflows/deploy.yml`）
+    - 端末は次にオンラインで開いたときに新しい版へ更新される。画面下部のバージョンで確認する
+    - この URL を変えると、端末に保存した予約データは見えなくなる（保存先が URL ごとに分かれるため）
   - localhost：Android は USB でつなぎ、`adb reverse tcp:4173 tcp:4173` でタブレットの `http://localhost:4173` を PC に転送して開く
 - 端末を変えるとデータは引き継がれない。受付は1台で行い、区切りごとに設定から JSON を書き出して控える

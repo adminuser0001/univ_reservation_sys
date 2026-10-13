@@ -149,3 +149,13 @@ v0.6.0 を実装した。フォントとアイコンを同梱して外部通信�
 本アプリはオフライン起動に Service Worker を使う PWA のため、HTTPS か localhost で一度開く必要がある（dist を zip で渡して index.html を直接開く方法は不可）。推奨は dist を HTTPS の静的ホスティング（GitHub Pages / Cloudflare Pages / Netlify など）に置き、URL・QR を配って各端末で一度開いて「ホーム画面に追加／インストール」する方法。予約データは端末内のみで、ホスティングには載らない。URL（オリジン）を変えるとデータが引き継がれないため、本番前に URL を確定させる。同一 Wi-Fi での npm run preview 配信は http のためオフライン起動できず、本番には不向き。
 【作業時間】
 32 秒
+
+[2026/10/13 13:48:50]
+【要求】
+GitHub Pages で配布したい（リポジトリ：adminuser0001/univ_reservation_sys）。
+【提案】
+GitHub Actions で main への push ごとにテスト・ビルド・Pages 公開を行う。非公開リポジトリでは Free プランで Pages が使えないため、公開化／Pro／別ホスティングを提示し、ユーザーが「リポジトリを公開にする」を選択。
+【結論】
+.github/workflows/deploy.yml を追加し、git を初期化して main を push。リポジトリを公開に変更して Pages（Actions 配信）を有効化し、デプロイ成功を確認。公開 URL は https://adminuser0001.github.io/univ_reservation_sys/ （index・manifest・sw.js とも 200）。README に URL と更新手順を追記。アプリ本体は変更なしのためバージョンは v0.6.0 のまま。
+【作業時間】
+334 秒
